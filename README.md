@@ -24,6 +24,6 @@
 
 ## 协议
 
-MIT。见 [LICENSE](LICENSE)。
+MIT。见 [LICENSE](LICENSE)
 
-原项目：[hakihakii/bibibobo](https://github.com/hakihakii/bibibobo) —— 出自《路墨小剧场》（哈基科技 / Lumoswitch）。
+原项目：[hakihakii/bibibobo](https://github.com/hakihakii/bibibobo) —— 出自《路墨小剧场》（哈基科技 / Lumoswitch）
