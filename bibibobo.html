@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>哔哔啵啵 · 把一句话变成小人说话声</title>
+<meta name="generator" content="bibibobo-singlefile">
+<style>
+  :root { --ink: #16244A; --yellow: #FFD84D; --red: #FF4D5E; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: #FFF6E4 radial-gradient(#E9D9B8 2px, transparent 3px) 0 0 / 28px 28px; color: var(--ink); font: 17px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; display: grid; place-items: center; padding: 24px; }
+  main { width: min(720px, 100%); background: #fff; border: 5px solid var(--ink); border-radius: 28px; box-shadow: 0 10px 0 var(--ink); padding: 28px; }
+  h1 { margin: 0 0 4px; font-size: 40px; line-height: 1.2; }
+  h1 mark { background: var(--yellow); color: var(--red); border-radius: 10px; padding: 0 8px; }
+  p { margin: 6px 0 18px; color: #525C78; }
+  textarea { width: 100%; height: 110px; font: inherit; font-size: 22px; padding: 14px; border: 4px solid var(--ink); border-radius: 16px; resize: vertical; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 14px; }
+  label { font-weight: 700; }
+  select, input[type=range] { font: inherit; }
+  select { padding: 8px 12px; border: 4px solid var(--ink); border-radius: 12px; background: #fff; }
+  button { font: inherit; font-weight: 800; font-size: 20px; padding: 10px 26px; border: 4px solid var(--ink); border-radius: 16px; background: var(--yellow); box-shadow: 0 5px 0 var(--ink); cursor: pointer; }
+  button:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+  button.ghost { background: #fff; }
+  canvas { width: 100%; height: 120px; margin-top: 18px; border: 4px solid var(--ink); border-radius: 16px; background: #12173F; display: block; }
+  ul { margin: 18px 0 0; padding-left: 20px; color: #525C78; }
+  code { background: #F1F3FA; border-radius: 6px; padding: 1px 6px; }
+  #play-error { background: #FFE7EA; border: 3px solid var(--red); border-radius: 12px; padding: 10px 12px; color: #9B1424; font-size: 15px; word-break: break-all; }
+  details { margin-top: 22px; border-top: 3px solid var(--ink); padding-top: 14px; }
+  summary { cursor: pointer; font-weight: 700; color: #525C78; }
+  pre { background: #F7F8FC; border: 2px solid var(--ink); border-radius: 12px; padding: 12px; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+</style>
+<main>
+  <h1>把一句话变成<mark>哔哔啵啵</mark></h1>
+  <p>没有录音，没有 AI 配音。一条锯齿波、两个滤波器，一个字一声。</p>
+  <textarea id="text">今天吃白饭？没饭了！真的没饭了……</textarea>
+  <div class="row">
+    <label>声线 <select id="voice"><option value="fish">大肥鱼（高）</option><option value="lumo">路墨（低）</option></select></label>
+    <label>语速 <input id="step" type="range" min="0.08" max="0.3" step="0.01" value="0.13"></label>
+    <button id="play">说！</button>
+    <button id="save" class="ghost">下载 WAV</button>
+  </div>
+  <audio id="player" preload="auto"></audio><p id="play-error" role="status" hidden></p>
+  <canvas id="scope" width="1328" height="240"></canvas>
+  <ul>
+    <li>同一个字永远是同一声：音高是 <code>音阶[hash(字) % 音阶长度]</code>。</li>
+    <li>问号结尾，尾音往上滑；带感叹号，整句升高；省略号结尾，整句压低、尾音下滑。</li>
+    <li>一个汉字一声，一串英文或数字算一声。</li>
+  </ul>
+  <details>
+    <summary>开源协议与致谢</summary>
+    <p>原项目 <a href="https://github.com/hakihakii/bibibobo">hakihakii/bibibobo</a> —— 把一句话变成「哔哔啵啵」的小人说话声，出自《路墨小剧场》（哈基科技 / Lumoswitch）。MIT 协议，拿去做视频、做桌宠、做游戏都可以，不用问。</p>
+    <p>本单文件版改动：合并为单文件 HTML、语法降级为 ES5 以兼容旧版浏览器、播放增加多层兜底、移除全部代码注释。合成结果与原版一致。</p>
+    <pre>  MIT License
+  
+  Copyright (c) 2026 hakihakii (Lumoswitch)
+  
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+  
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+  
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.</pre>
+  </details>
+</main>
+<script>
+(function () {
+  var box = null;
+  function say(msg) {
+    try {
+      if (!box) box = document.getElementById('play-error');
+      if (!box) return;
+      box.textContent = msg;
+      box.hidden = false;
+    } catch (e) {}
+  }
+  window.__bbbSay = say;
+  window.onerror = function (msg, src, line, col, err) {
+    say('页面脚本报错：' + msg + '（第 ' + line + ' 行）' + (err && err.stack ? ' ｜ ' + String(err.stack).split('\n')[0] : ''));
+    return false;
+  };
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e && e.reason;
+    say('页面脚本报错：' + ((r && r.name) ? r.name + ': ' + r.message : String(r)));
+  });
+})();
+</script>
+<script>
+var TAU = Math.PI * 2;
+function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+var VOWELS = [[800, 1200], [400, 2200], [350, 800], [600, 1700], [300, 2600]];
+var VOICES = {
+  fish: {scale: [76, 79, 81, 83, 84], formant: 1.25, maxDur: 0.13, hold: 0.8, chirp: 1.5, fall: 0, gain: 0.16, step: 0.13},
+  lumo: {scale: [62, 64, 67, 69], formant: 0.9, maxDur: 0.2, hold: 0.7, chirp: 0, fall: -2, gain: 0.17, step: 0.16}
+};
+function hash(s) {
+  var h = 7;
+  for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 9973;
+  return h;
+}
+function syllables(s) {
+  var m = String(s).match(/[A-Za-z_\/.0-9]+|[\u4e00-\u9fff]/g);return m || [];
+}
+function saw(sampleRate) {
+  var ph = 0;
+  return function (f) {
+    var dt = f / sampleRate;
+    ph += dt; if (ph >= 1) ph -= 1;
+    var v = 2 * ph - 1;
+    if (ph < dt) { var t = ph / dt; v -= t + t - t * t - 1; }
+    else if (ph > 1 - dt) { var t2 = (ph - 1) / dt; v -= t2 * t2 + t2 + t2 + 1; }
+    return v;
+  };
+}
+function bandpass(sampleRate) {
+  var lp = 0, bp = 0;
+  return function (x, fc, q) {
+    var f = 2 * Math.sin((Math.PI * Math.min(fc, sampleRate / 6)) / sampleRate);
+    var hp = x - lp - bp / q;
+    bp += f * hp; lp += f * bp;
+    return bp;
+  };
+}
+function voice(out, sampleRate, t, m, dur, v, glide, vowel) {
+  if (glide === undefined) glide = 0;
+  if (vowel === undefined) vowel = 0;
+  var osc = saw(sampleRate), f1 = bandpass(sampleRate), f2 = bandpass(sampleRate);
+  var vv = VOWELS[vowel % VOWELS.length], a = vv[0], b = vv[1];
+  var start = Math.floor(t * sampleRate), n = Math.floor(dur * sampleRate);
+  for (var i = 0; i < n && start + i < out.length; i++) {
+    var x = i / sampleRate;
+    var pitch = mtof(m + glide * (x / dur) + v.chirp * Math.exp(-x * 30)) * (1 + 0.012 * Math.sin(TAU * 6 * x));
+    var s = osc(pitch);
+    var env = Math.min(1, x * 200) * Math.min(1, (dur - x) * 40);
+    out[start + i] += (f1(s, a * v.formant, 4) + 0.7 * f2(s, b * v.formant, 5)) * env * v.gain;
+  }
+}
+function synth(text, opts) {
+  opts = opts || {};
+  var v;
+  if (opts.voice && typeof opts.voice === 'object') {
+    var merged = {}, key;
+    for (key in VOICES.fish) merged[key] = VOICES.fish[key];
+    for (key in opts.voice) merged[key] = opts.voice[key];
+    v = merged;
+  } else {
+    v = VOICES[opts.voice || 'fish'] || VOICES.fish;
+  }
+  var sampleRate = opts.sampleRate || 44100;
+  var step = opts.step || v.step;
+  var gap = opts.gap === undefined ? 0.22 : opts.gap;
+  var raw = String(text).match(/[^？?！!。.，,、；;…\n]+[？?！!。.，,、；;…]*/g) || [];
+  var sentences = [];
+  for (var si = 0; si < raw.length; si++) {
+    var tk = syllables(raw[si]);
+    if (tk.length) sentences.push({text: raw[si], tk: tk});
+  }
+  var total = 0.4;
+  for (var i2 = 0; i2 < sentences.length; i2++) total += sentences[i2].tk.length * step + gap;
+  var out = new Float32Array(Math.ceil(total * sampleRate));
+  var t = 0.02;
+  for (var s2 = 0; s2 < sentences.length; s2++) {
+    var s = sentences[s2], tk2 = s.tk;
+    var ask = /[？?]$/.test(s.text), shout = /[！!]/.test(s.text), sad = /(……|\.\.\.|…)$/.test(s.text);
+    for (var i3 = 0; i3 < tk2.length; i3++) {
+      var w = tk2[i3], last = i3 === tk2.length - 1;
+      var h = hash(w);
+      var m = v.scale[h % v.scale.length] + (shout ? 3 : 0) - (sad ? 3 : 0);
+      var dur = Math.min(step * v.hold, v.maxDur) + (last && (ask || shout || sad) ? 0.1 : 0);
+      var glide = last && ask ? 5 : last && sad ? -4 : last ? v.fall : 0;
+      voice(out, sampleRate, t + i3 * step, m, dur, v, glide, h);
+    }
+    t += tk2.length * step + gap;
+  }
+  for (var i4 = 0; i4 < out.length; i4++) out[i4] = Math.tanh(out[i4] * 2.4);return out;
+}
+function toWav(samples, sampleRate) {
+  if (!sampleRate) sampleRate = 44100;
+  var buf = new ArrayBuffer(44 + samples.length * 2), d = new DataView(buf);
+  function str(o, s) { for (var i = 0; i < s.length; i++) d.setUint8(o + i, s.charCodeAt(i)); }
+  str(0, 'RIFF'); d.setUint32(4, 36 + samples.length * 2, true); str(8, 'WAVEfmt ');
+  d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true);
+  d.setUint32(24, sampleRate, true); d.setUint32(28, sampleRate * 2, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true);
+  str(36, 'data'); d.setUint32(40, samples.length * 2, true);
+  for (var i = 0; i < samples.length; i++) d.setInt16(44 + i * 2, Math.round(Math.max(-1, Math.min(1, samples[i])) * 32767), true);
+  return new Uint8Array(buf);
+}
+</script>
+<script>(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var player = $('player');
+  var SR = 44100;
+  var audioCtx = null;
+  var currentSrc = null;
+  var playbackId = 0;
+
+  function make() {
+    return synth($('text').value, {voice: $('voice').value, step: +$('step').value});
+  }
+
+  function draw(samples) {
+    var c = $('scope'), g = c.getContext('2d'), w = c.width, h = c.height;
+    g.clearRect(0, 0, w, h); g.strokeStyle = '#7CF5C6'; g.lineWidth = 3; g.beginPath();
+    var n = Math.max(1, Math.floor(samples.length / w));
+    for (var x = 0; x < w; x++) {
+      var lo = 1, hi = -1;
+      for (var i = x * n; i < (x + 1) * n && i < samples.length; i++) {
+        if (samples[i] < lo) lo = samples[i];
+        if (samples[i] > hi) hi = samples[i];
+      }
+      g.moveTo(x, h / 2 - hi * h * 0.46); g.lineTo(x, h / 2 - lo * h * 0.46 + 1);
+    }
+    g.stroke();
+  }
+
+  function describe(e) {
+    if (!e) return '未知错误';
+    var name = e.name || 'Error', msg = e.message || String(e);
+    return name + ': ' + msg;
+  }
+
+  function fail(prefix, e) {
+    try { console.error(prefix, e); } catch (x) {}
+    if (window.__bbbSay) window.__bbbSay(prefix + ' —— ' + describe(e) + ' ｜ 换个浏览器，或直接点「下载 WAV」收听。');
+  }
+
+  function playViaWebAudio(samples) {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) throw new Error('这个浏览器不支持 Web Audio (AudioContext)');
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === 'suspended' && audioCtx.resume) audioCtx.resume();
+    var buffer = audioCtx.createBuffer(1, samples.length, SR);
+    var ch = buffer.getChannelData(0);
+    if (ch && ch.set) { ch.set(samples); }
+    else { for (var i = 0; i < samples.length; i++) ch[i] = samples[i]; }
+    if (currentSrc) { try { currentSrc.stop(); } catch (x) {} currentSrc = null; }
+    var src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(audioCtx.destination);
+    src.start();
+    currentSrc = src;
+    src.onended = function () { if (currentSrc === src) currentSrc = null; };
+  }
+
+  function playViaAudioElement(samples) {
+    var blob = new Blob([toWav(samples)], {type: 'audio/wav'});
+    var url = URL.createObjectURL(blob);
+    player.setAttribute('src', url);
+    player.setAttribute('data-url', url);
+    player.load();
+    return player.play();
+  }
+
+  function playViaDataUri(samples) {
+    var bytes = toWav(samples);
+    var bin = '', CH = 0x8000;
+    for (var i = 0; i < bytes.length; i += CH) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+    }
+    player.setAttribute('src', 'data:audio/wav;base64,' + btoa(bin));
+    player.load();
+    return player.play();
+  }
+
+  $('voice').onchange = function () { $('step').value = VOICES[$('voice').value].step; };
+
+  $('play').onclick = function () {
+    var id = ++playbackId;
+    $('play-error').hidden = true;
+    var samples;
+    try {
+      samples = make();
+      draw(samples);
+    } catch (e) {
+      if (id !== playbackId) return;fail('合成失败', e);
+      return;
+    }
+    var attempts = [
+      ['Web Audio', function () { return playViaWebAudio(samples); }],
+      ['audio 元素', function () { return playViaAudioElement(samples); }],
+      ['data URI', function () { return playViaDataUri(samples); }]
+    ];
+    var n = 0;
+    function next() {
+      if (n >= attempts.length) { if (id === playbackId) fail('三种播放方式全被浏览器挡住了', new Error('试试下载 WAV')); return; }
+      var name = attempts[n][0], fn = attempts[n][1]; n++;
+      var r;
+      try { r = fn(); } catch (e) { try { console.warn(name + ' 失败：', e); } catch (x) {} return next(); }
+      if (r && r.then) {
+        r.then(function () { try { console.log('播放成功：' + name); } catch (x) {} })
+         .catch(function (e) { try { console.warn(name + ' 失败：', e); } catch (x) {} next(); });
+      } else { try { console.log('播放成功：' + name); } catch (x) {} }
+    }
+    next();
+  };
+
+  $('save').onclick = function () {
+    var samples = make();
+    draw(samples);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([toWav(samples)], {type: 'audio/wav'}));
+    a.download = 'bibibobo.wav';
+    a.click();
+  };
+
+  draw(make());
+})();
+</script>
+</html>
